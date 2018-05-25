@@ -1,0 +1,129 @@
+﻿using Microsoft.Win32;
+using System;
+using System.IO;
+using System.Text.RegularExpressions;
+using System.Windows;
+using System.Windows.Threading;
+using Excel = Microsoft.Office.Interop.Excel;
+
+namespace WpfApplication2
+{
+    /// <summary>
+    /// MainWindow.xaml の相互作用ロジック
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+
+        private bool fContinue = false;
+        Excel.Application app;
+        Excel.Workbook workbook;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            app = new Excel.Application();
+            app.Visible = false;
+        }
+
+
+        private void button_Click(object sender, RoutedEventArgs e)
+        {
+            fContinue = true;
+            string tmpStr = "";
+            passUnlock(tmpStr, 10, OpenFile());
+            fContinue = false;
+            MessageBox.Show("Completed");
+        }
+
+        private int passUnlock(string pass, int pasLen, string FileName)
+        {
+            int i = 0;
+            string p = "";
+
+            if (pass.Length > pasLen) { return 1; }
+
+            for (i = 0x20; i <= 0x7F && fContinue == true; i++)
+            {
+                p = Convert.ToString((char)i);
+
+                string tmpStr = pass + p;
+                label1.Content = tmpStr;
+                DoEvents();
+
+                if (tmpStr.Length != pasLen)
+                {
+                    passUnlock(tmpStr, pasLen, FileName);
+                }
+                else
+                {
+                    if(OpenBooks(tmpStr, FileName) == 0)
+                    {
+                        fContinue = false;
+                        return 0;
+                    }
+                }
+            }
+            return -1;
+        }
+
+        private int OpenBooks(string Pass, string FileName)
+        {
+            try
+            {
+                //空白を削除
+                Pass = Regex.Replace(Pass, @"\s", "");
+
+                //Excelを表示
+                workbook = app.Workbooks.Open(
+                     FileName, Type.Missing, Type.Missing, Type.Missing,
+                     Pass, Type.Missing, Type.Missing,
+                     Type.Missing, Type.Missing, Type.Missing,
+                     Type.Missing, Type.Missing, Type.Missing,
+                     Type.Missing, Type.Missing);
+                MessageBox.Show(Pass);
+                workbook.Close();
+                fContinue = false;
+                this.Close();
+                return 0;
+            }
+            catch (Exception e)
+            {
+                return -1;
+            }
+        }
+
+        private string OpenFile()
+        {
+            //OpenFileDialogクラスのインスタンスを作成
+            OpenFileDialog ofd = new OpenFileDialog();
+            ofd.FileName = "default.xls";
+            ofd.InitialDirectory = @"C:\";
+            ofd.Filter = "Excelファイル(*.xls;*.xlsx)|*.xls;*.xlsx|すべてのファイル(*.*)|*.*";
+            ofd.FilterIndex = 2;
+            ofd.Title = "開くファイルを選択してください";
+            ofd.RestoreDirectory = true;
+            ofd.CheckFileExists = true;
+            ofd.CheckPathExists = true;
+
+            //ダイアログを表示する
+            bool? result = ofd.ShowDialog();
+            if (result == true)
+            {
+                return ofd.FileName;
+            }
+            return "";
+        }
+
+        private void DoEvents()
+        {
+            DispatcherFrame frame = new DispatcherFrame();
+            var callback = new DispatcherOperationCallback(obj =>
+            {
+                ((DispatcherFrame)obj).Continue = false;
+                return null;
+            });
+            Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, callback, frame);
+            Dispatcher.PushFrame(frame);
+        }
+    }
+}
